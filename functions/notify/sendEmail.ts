@@ -11,7 +11,7 @@ export const sendEmail = async (
   const resend = new Resend(SECRETS.RESEND_API_KEY)
 
   const { from, to, text, html, subject, replyTo } = request.body
-  
+
   console.log('[EMAIL] Validating request...')
 
   // Validate required fields
@@ -24,7 +24,7 @@ export const sendEmail = async (
       message: invalidReq,
     })
   }
-  
+
   console.log('[EMAIL] ✓ Required fields present (from, to)')
 
   // Validate content requirements
@@ -45,10 +45,10 @@ export const sendEmail = async (
       message: 'You must provide either body text or HTML content',
     })
   }
-  
+
   console.log('[EMAIL] ✓ Validation passed')
   console.log('[EMAIL] Sending email:', {
-    from: from || 'FL Accra Admin <no-reply@firstlovecenter.org>',
+    from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
     to: to || 'test@email.com',
     subject,
     hasText: !!text,
@@ -58,7 +58,7 @@ export const sendEmail = async (
 
   try {
     const res = await resend.emails.send({
-      from: from || 'FL Accra Admin <no-reply@firstlovecenter.org>',
+      from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
       to: to || 'test@email.com',
       subject,
       ...(text && { text }),
