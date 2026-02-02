@@ -94,7 +94,7 @@ router.post('/send-email', async (request: Request, response: Response) => {
         error instanceof Error ? error.message : 'Unknown error occurred',
     })
   }
-}))
+})
 
 // Register the router
 app.use('/', router)
