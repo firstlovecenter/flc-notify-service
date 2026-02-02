@@ -35,14 +35,11 @@ const fetchAwsSecret = async () => {
     throw new Error('Secret string is empty')
   } catch (error) {
     console.error('Error fetching secrets from AWS:', error)
-    // Fallback to default values if AWS secret fetch fails
-    console.log('Using fallback secrets')
-    return {
-      JWT_SECRET: 'fallback_secret_key_for_development',
-      NEO4J_URI: 'bolt://localhost:7687',
-      NEO4J_USER: 'neo4j',
-      NEO4J_PASSWORD: 'password',
-    }
+    throw new Error(
+      `Failed to load required secrets from AWS Secrets Manager: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    )
   }
 }
 
