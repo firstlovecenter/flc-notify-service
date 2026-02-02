@@ -5,9 +5,12 @@ const { default: axios } = require('axios')
 
 export const sendSMS = async (request: Request, response: Response) => {
   const { recipient, message, sender } = request.body
+  
+  console.log('[SMS] Validating request...')
 
   // Validate required fields
   if (!recipient) {
+    console.log('[SMS] ❌ Validation failed: Missing recipient')
     return response.status(400).json({
       success: false,
       error: 'Validation error',
@@ -16,15 +19,22 @@ export const sendSMS = async (request: Request, response: Response) => {
   }
 
   if (!message) {
+    console.log('[SMS] ❌ Validation failed: Missing message')
     return response.status(400).json({
       success: false,
       error: 'Validation error',
       message: 'Missing message field',
     })
   }
+  
+  console.log('[SMS] ✓ Validation passed')
 
   // Format phone numbers if needed (add validation here if necessary)
   const recipients = Array.isArray(recipient) ? recipient : [recipient]
+  
+  console.log('[SMS] Recipients:', recipients)
+  console.log('[SMS] Message length:', message.length)
+  console.log('[SMS] Sender:', sender || 'FLC Admin')
 
   const SECRETS = await loadSecrets()
 
@@ -44,11 +54,16 @@ export const sendSMS = async (request: Request, response: Response) => {
       schedule_date: '',
     },
   }
+  
+  console.log('[SMS] Sending SMS via MNotify...')
 
   try {
     const res = await axios(sendMessage)
+    
+    console.log('[SMS] MNotify response code:', res.data.code)
 
     if (res.data.code === '2000') {
+      console.log('[SMS] ✓ SMS sent successfully')
       return response.status(200).json({
         success: true,
         message: 'SMS sent successfully',
@@ -57,6 +72,7 @@ export const sendSMS = async (request: Request, response: Response) => {
     }
 
     // API returned an error code
+    console.log('[SMS] ❌ MNotify error:', res.data.message)
     return response.status(502).json({
       success: false,
       error: 'SMS provider error',
@@ -66,7 +82,7 @@ export const sendSMS = async (request: Request, response: Response) => {
       data: res.data,
     })
   } catch (error) {
-    console.error('SMS send error details:', error)
+    console.error('[SMS] ❌ SMS send error:', error)
 
     // Handle network errors or other axios errors
     if (axios.isAxiosError(error)) {

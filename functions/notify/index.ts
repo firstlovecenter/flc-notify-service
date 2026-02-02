@@ -28,20 +28,30 @@ router.get('/', (request: Request, response: Response) => {
 
 // SMS endpoint
 router.post('/send-sms', async (request: Request, response: Response) => {
+  console.log('\n[SMS] Incoming request')
+  console.log('[SMS] Headers:', request.headers)
+  console.log('[SMS] Body:', { ...request.body, message: request.body.message ? `${request.body.message.substring(0, 50)}...` : undefined })
+  
   const secretKey = request.headers['x-secret-key']
   const SECRETS = await loadSecrets()
+  
   if (!secretKey || secretKey !== SECRETS.FLC_NOTIFY_KEY) {
+    console.log('[SMS] ❌ Authorization failed')
     return response.status(403).json({
       success: false,
       error: 'Unauthorized access',
       message: 'Invalid or missing API key',
     })
   }
+  
+  console.log('[SMS] ✓ Authorization passed')
 
   try {
-    return sendSMS(request, response)
+    const result = await sendSMS(request, response)
+    console.log('[SMS] ✓ SMS function completed')
+    return result
   } catch (error) {
-    // Log error details
+    console.log('[SMS] ❌ Error:', error instanceof Error ? error.message : 'Unknown error')
     return response.status(502).json({
       success: false,
       error: 'SMS delivery failed',
@@ -53,20 +63,30 @@ router.post('/send-sms', async (request: Request, response: Response) => {
 
 // Email endpoint
 router.post('/send-email', async (request: Request, response: Response) => {
+  console.log('\n[EMAIL] Incoming request')
+  console.log('[EMAIL] Headers:', request.headers)
+  console.log('[EMAIL] Body:', { ...request.body, html: request.body.html ? `${request.body.html.substring(0, 50)}...` : undefined, text: request.body.text ? `${request.body.text.substring(0, 50)}...` : undefined })
+  
   const secretKey = request.headers['x-secret-key']
   const SECRETS = await loadSecrets()
+  
   if (!secretKey || secretKey !== SECRETS.FLC_NOTIFY_KEY) {
+    console.log('[EMAIL] ❌ Authorization failed')
     return response.status(403).json({
       success: false,
       error: 'Unauthorized access',
       message: 'Invalid or missing API key',
     })
   }
+  
+  console.log('[EMAIL] ✓ Authorization passed')
 
   try {
-    return sendEmail(request, response)
+    const result = await sendEmail(request, response)
+    console.log('[EMAIL] ✓ Email function completed')
+    return result
   } catch (error) {
-    // Log error details
+    console.log('[EMAIL] ❌ Error:', error instanceof Error ? error.message : 'Unknown error')
     return response.status(502).json({
       success: false,
       error: 'Email delivery failed',
@@ -74,7 +94,7 @@ router.post('/send-email', async (request: Request, response: Response) => {
         error instanceof Error ? error.message : 'Unknown error occurred',
     })
   }
-})
+}))
 
 // Register the router
 app.use('/', router)

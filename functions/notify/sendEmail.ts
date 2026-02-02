@@ -11,19 +11,25 @@ export const sendEmail = async (
   const resend = new Resend(SECRETS.RESEND_API_KEY)
 
   const { from, to, text, html, subject, replyTo } = request.body
+  
+  console.log('[EMAIL] Validating request...')
 
   // Validate required fields
   const invalidReq = validateRequest(request.body, ['from', 'to'])
   if (invalidReq) {
+    console.log('[EMAIL] ❌ Validation failed:', invalidReq)
     return response.status(400).json({
       success: false,
       error: 'Validation error',
       message: invalidReq,
     })
   }
+  
+  console.log('[EMAIL] ✓ Required fields present (from, to)')
 
   // Validate content requirements
   if (!subject) {
+    console.log('[EMAIL] ❌ Validation failed: Missing subject')
     return response.status(400).json({
       success: false,
       error: 'Validation error',
@@ -32,12 +38,23 @@ export const sendEmail = async (
   }
 
   if (!text && !html) {
+    console.log('[EMAIL] ❌ Validation failed: Missing text or html content')
     return response.status(400).json({
       success: false,
       error: 'Validation error',
       message: 'You must provide either body text or HTML content',
     })
   }
+  
+  console.log('[EMAIL] ✓ Validation passed')
+  console.log('[EMAIL] Sending email:', {
+    from: from || 'FL Accra Admin <no-reply@firstlovecenter.org>',
+    to: to || 'test@email.com',
+    subject,
+    hasText: !!text,
+    hasHtml: !!html,
+    hasReplyTo: !!replyTo,
+  })
 
   try {
     const res = await resend.emails.send({
@@ -50,6 +67,7 @@ export const sendEmail = async (
     })
 
     if (res.data && res.data.id) {
+      console.log('[EMAIL] ✓ Email sent successfully. ID:', res.data.id)
       return response.status(200).json({
         success: true,
         message: 'Email sent successfully',
@@ -59,6 +77,7 @@ export const sendEmail = async (
 
     // Handle errors from Resend
     if (res.error) {
+      console.log('[EMAIL] ❌ Resend error:', res.error.message)
       return response.status(502).json({
         success: false,
         error: 'Email provider error',
@@ -67,6 +86,7 @@ export const sendEmail = async (
     }
 
     // For unexpected response formats
+    console.log('[EMAIL] ❌ Unexpected response:', res)
     return response.status(502).json({
       success: false,
       error: 'Email provider error',
@@ -74,7 +94,7 @@ export const sendEmail = async (
       data: res,
     })
   } catch (error) {
-    console.error('Email sending error details:', error)
+    console.error('[EMAIL] ❌ Email sending error:', error)
 
     // Handle specific errors
     if (error instanceof Error) {
