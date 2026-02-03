@@ -83,7 +83,7 @@ export const sendEmail = async (
       console.log(
         '[EMAIL] Attachments included:',
         processedAttachments.map((a) => a.filename)
-      e))
+      )
     }
 
     const res = await resend.emails.send(emailConfig)
