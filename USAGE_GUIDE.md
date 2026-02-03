@@ -150,16 +150,35 @@ x-secret-key: YOUR_FLC_NOTIFY_KEY
 
 ### Request Body Parameters
 
-| Parameter | Type               | Required | Description                                    |
-| --------- | ------------------ | -------- | ---------------------------------------------- |
-| `from`    | string             | Yes      | Sender email address (must be verified domain) |
-| `to`      | string or string[] | Yes      | Recipient email address(es)                    |
-| `subject` | string             | Yes      | Email subject line                             |
-| `text`    | string             | No\*     | Plain text email body                          |
-| `html`    | string             | No\*     | HTML email body                                |
-| `replyTo` | string             | No       | Reply-to email address                         |
+| Parameter     | Type               | Required | Description                                    |
+| ------------- | ------------------ | -------- | ---------------------------------------------- |
+| `from`        | string             | Yes      | Sender email address (must be verified domain) |
+| `to`          | string or string[] | Yes      | Recipient email address(es)                    |
+| `subject`     | string             | Yes      | Email subject line                             |
+| `text`        | string             | No\*     | Plain text email body                          |
+| `html`        | string             | No\*     | HTML email body                                |
+| `replyTo`     | string             | No       | Reply-to email address                         |
+| `attachments` | array              | No       | Array of file attachments (see below)          |
 
 **Note:\*** You must provide either `text` or `html` (or both)
+
+#### Attachments Format
+
+Each attachment object must contain:
+
+| Field      | Type   | Required | Description                            |
+| ---------- | ------ | -------- | -------------------------------------- |
+| `filename` | string | Yes      | Name of the file (e.g., "invoice.pdf") |
+| `content`  | string | Yes      | Base64-encoded file content            |
+
+**Example Attachment:**
+
+```json
+{
+  "filename": "invoice.pdf",
+  "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmpqFQo0IDAgb2JqCjw8Cgl..."
+}
+```
 
 ### Example Requests
 
@@ -195,6 +214,44 @@ x-secret-key: YOUR_FLC_NOTIFY_KEY
   "to": ["user1@example.com", "user2@example.com"],
   "subject": "Event Reminder",
   "html": "<h2>Upcoming Event</h2><p>Don't forget our meeting tomorrow!</p>"
+}
+```
+
+**Email with Attachments:**
+
+```json
+{
+  "from": "no-reply@firstlovecenter.com",
+  "to": "user@example.com",
+  "subject": "Your Invoice",
+  "html": "<h1>Invoice #2024-001</h1><p>Please see the attached invoice.</p>",
+  "attachments": [
+    {
+      "filename": "invoice-2024-001.pdf",
+      "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmp..."
+    }
+  ]
+}
+```
+
+**Email with Multiple Attachments:**
+
+```json
+{
+  "from": "reports@firstlovecenter.com",
+  "to": "manager@example.com",
+  "subject": "Monthly Report",
+  "html": "<h1>Monthly Report - January 2024</h1><p>See attached files for details.</p>",
+  "attachments": [
+    {
+      "filename": "report.pdf",
+      "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmp..."
+    },
+    {
+      "filename": "data.csv",
+      "content": "TmFtZSxBbW91bnQsRGF0ZQpKb2huLDEwMDAsMjAyNC0wMS0wMQpKYW5lLDI..."
+    }
+  ]
 }
 ```
 
@@ -331,6 +388,37 @@ async function sendEmail(to, subject, htmlContent) {
   }
 }
 
+// Send Email with Attachments
+async function sendEmailWithAttachments(to, subject, htmlContent, attachments) {
+  try {
+    const response = await axios.post(
+      `${API_URL}/send-email`,
+      {
+        from: 'no-reply@firstlovecenter.com',
+        to: to,
+        subject: subject,
+        html: htmlContent,
+        attachments: attachments,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-secret-key': API_KEY,
+        },
+      }
+    )
+
+    console.log('Email with attachments sent:', response.data)
+    return response.data
+  } catch (error) {
+    console.error(
+      'Failed to send email:',
+      error.response?.data || error.message
+    )
+    throw error
+  }
+}
+
 // Usage
 sendSMS('+233244000000', 'Hello from FLC!')
   .then((result) => console.log('Success:', result))
@@ -414,6 +502,31 @@ class NotifyService {
       throw error
     }
   }
+
+  async sendEmailWithAttachments(
+    params: EmailRequest & {
+      attachments: Array<{ filename: string; content: string }>
+    }
+  ): Promise<NotifyResponse> {
+    try {
+      const { data } = await axios.post<NotifyResponse>(
+        `${this.apiUrl}/send-email`,
+        params,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-secret-key': this.apiKey,
+          },
+        }
+      )
+      return data
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(error.response?.data?.message || 'Failed to send email')
+      }
+      throw error
+    }
+  }
 }
 
 // Usage
@@ -435,6 +548,24 @@ await notifyService.sendEmail({
   to: 'customer@example.com',
   subject: 'Order Confirmation',
   html: '<h1>Thank you for your order!</h1>',
+})
+
+// Send Email with Attachments
+const fs = require('fs')
+const fileContent = fs.readFileSync('invoice.pdf')
+const base64Content = fileContent.toString('base64')
+
+await notifyService.sendEmailWithAttachments({
+  from: 'billing@firstlovecenter.com',
+  to: 'customer@example.com',
+  subject: 'Invoice #2024-001',
+  html: '<h1>Invoice Attached</h1><p>See attached invoice for details.</p>',
+  attachments: [
+    {
+      filename: 'invoice.pdf',
+      content: base64Content,
+    },
+  ],
 })
 ```
 
@@ -483,9 +614,10 @@ class NotifyService:
         subject: str,
         text: Optional[str] = None,
         html: Optional[str] = None,
-        reply_to: Optional[str] = None
+        reply_to: Optional[str] = None,
+        attachments: Optional[List[dict]] = None
     ) -> dict:
-        """Send an email"""
+        """Send an email with optional attachments"""
         payload = {
             'from': from_email,
             'to': to,
@@ -497,6 +629,8 @@ class NotifyService:
             payload['html'] = html
         if reply_to:
             payload['replyTo'] = reply_to
+        if attachments:
+            payload['attachments'] = attachments
 
         response = requests.post(
             f'{self.api_url}/send-email',
@@ -520,6 +654,29 @@ try:
         sender='MyApp'
     )
     print(f"SMS sent: {result}")
+except requests.exceptions.HTTPError as e:
+    print(f"Error: {e.response.json()}")
+
+# Send Email with Attachments
+import base64
+
+try:
+    # Read file and encode as base64
+    with open('invoice.pdf', 'rb') as f:
+        file_content = f.read()
+        base64_content = base64.b64encode(file_content).decode('utf-8')
+
+    result = notify.send_email(
+        from_email='billing@firstlovecenter.com',
+        to='customer@example.com',
+        subject='Invoice #2024-001',
+        html='<h1>Invoice Attached</h1><p>See attached invoice for details.</p>',
+        attachments=[{
+            'filename': 'invoice.pdf',
+            'content': base64_content
+        }]
+    )
+    print(f"Email with attachment sent: {result}")
 except requests.exceptions.HTTPError as e:
     print(f"Error: {e.response.json()}")
 ```
@@ -547,6 +704,26 @@ curl -X POST https://your-api-url.amazonaws.com/send-email \
     "subject": "Test Email",
     "html": "<h1>Hello World</h1>",
     "text": "Hello World"
+  }'
+
+# Send Email with Attachment
+# First, encode a file to base64 (macOS/Linux)
+# base64 -i invoice.pdf | tr -d '\n'
+# Then use in curl:
+curl -X POST https://your-api-url.amazonaws.com/send-email \
+  -H "Content-Type: application/json" \
+  -H "x-secret-key: YOUR_FLC_NOTIFY_KEY" \
+  -d '{
+    "from": "billing@firstlovecenter.com",
+    "to": "customer@example.com",
+    "subject": "Invoice",
+    "html": "<h1>Invoice Attached</h1>",
+    "attachments": [
+      {
+        "filename": "invoice.pdf",
+        "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmp..."
+      }
+    ]
   }'
 
 # Health Check

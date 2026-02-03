@@ -39,6 +39,26 @@ curl -X POST https://your-api-url.amazonaws.com/send-email \
   }'
 ```
 
+**Send an Email with Attachments:**
+
+```bash
+curl -X POST https://your-api-url.amazonaws.com/send-email \
+  -H "Content-Type: application/json" \
+  -H "x-secret-key: YOUR_API_KEY" \
+  -d '{
+    "from": "no-reply@firstlovecenter.com",
+    "to": "user@example.com",
+    "subject": "Here is your document",
+    "html": "<h1>Attached: Invoice</h1>",
+    "attachments": [
+      {
+        "filename": "invoice.pdf",
+        "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmo..."
+      }
+    ]
+  }'
+```
+
 ## 📱 JavaScript Example
 
 ```javascript
@@ -63,7 +83,7 @@ async function sendSMS(phone, message) {
 }
 
 // Send Email
-async function sendEmail(to, subject, html) {
+async function sendEmail(to, subject, html, attachments = []) {
   const response = await axios.post(
     `${API_URL}/send-email`,
     {
@@ -71,6 +91,7 @@ async function sendEmail(to, subject, html) {
       to,
       subject,
       html,
+      ...(attachments.length > 0 && { attachments }),
     },
     {
       headers: {
@@ -108,15 +129,20 @@ def send_sms(recipient, message):
     )
     return response.json()
 
-def send_email(to, subject, html):
+def send_email(to, subject, html, attachments=None):
+    payload = {
+        'from': 'no-reply@firstlovecenter.com',
+        'to': to,
+        'subject': subject,
+        'html': html
+    }
+    
+    if attachments:
+        payload['attachments'] = attachments
+    
     response = requests.post(
         f'{API_URL}/send-email',
-        json={
-            'from': 'no-reply@firstlovecenter.com',
-            'to': to,
-            'subject': subject,
-            'html': html
-        },
+        json=payload,
         headers={
             'Content-Type': 'application/json',
             'x-secret-key': API_KEY
@@ -144,6 +170,31 @@ print(result)
 - ✓ `subject` - Email subject
 - ✓ `html` or `text` - Email content
 - ✓ `x-secret-key` header
+
+### Email Attachments (Optional)
+
+- `attachments` - Array of attachment objects
+  - `filename` - Name of the file (e.g., "invoice.pdf")
+  - `content` - Base64-encoded file content
+
+**Example:**
+```json
+{
+  "to": "user@example.com",
+  "subject": "Your Invoice",
+  "html": "<p>See attached invoice</p>",
+  "attachments": [
+    {
+      "filename": "invoice-2024.pdf",
+      "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmp..."
+    },
+    {
+      "filename": "receipt.txt",
+      "content": "UmVjZWlwdCBmb3IgcGF5bWVudCBvZiBnb29kcw=="
+    }
+  ]
+}
+```
 
 ## 🔒 Security Best Practices
 
@@ -210,6 +261,75 @@ recipient: '0244000000'
 3. **Use templates** for consistent messaging
 4. **Log all requests** for debugging
 5. **Implement retry logic** for transient failures
+6. **Encode attachments in base64** - all file content must be base64 encoded
+7. **Keep attachments small** - large files may cause timeouts
+8. **Verify attachment MIME types** - ensure files are properly formatted
+
+## 📎 Working with Attachments
+
+### Converting Files to Base64 (Node.js)
+
+```javascript
+const fs = require('fs')
+
+// Read file and encode
+const fileContent = fs.readFileSync('invoice.pdf')
+const base64Content = fileContent.toString('base64')
+
+const response = await sendEmail(
+  'user@example.com',
+  'Your Invoice',
+  '<p>See attached</p>',
+  [{
+    filename: 'invoice.pdf',
+    content: base64Content
+  }]
+)
+```
+
+### Converting Files to Base64 (Python)
+
+```python
+import base64
+
+with open('invoice.pdf', 'rb') as f:
+    file_content = f.read()
+    base64_content = base64.b64encode(file_content).decode('utf-8')
+
+response = send_email(
+    'user@example.com',
+    'Your Invoice',
+    '<p>See attached</p>',
+    attachments=[{
+        'filename': 'invoice.pdf',
+        'content': base64_content
+    }]
+)
+```
+
+### Converting Files to Base64 (cURL)
+
+```bash
+# Create a base64 string from a file
+base64 -i invoice.pdf
+
+# Use in curl request
+curl -X POST https://your-api-url.amazonaws.com/send-email \
+  -H "Content-Type: application/json" \
+  -H "x-secret-key: YOUR_API_KEY" \
+  -d @- << 'EOF'
+{
+  "from": "no-reply@firstlovecenter.com",
+  "to": "user@example.com",
+  "subject": "Your Invoice",
+  "html": "<p>See attached</p>",
+  "attachments": [{
+    "filename": "invoice.pdf",
+    "content": "JVBERi0xLjQKJeLjz9MNCjEgMCBvYmp..."
+  }]
+}
+EOF
+```
 
 ---
 

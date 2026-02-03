@@ -7,7 +7,7 @@ const secrets_1 = require("./secrets");
 const sendEmail = async (request, response) => {
     const SECRETS = await (0, secrets_1.loadSecrets)();
     const resend = new resend_1.Resend(SECRETS.RESEND_API_KEY);
-    const { from, to, text, html, subject, replyTo } = request.body;
+    const { from, to, text, html, subject, replyTo, attachments } = request.body;
     console.log('[EMAIL] Validating request...');
     // Validate required fields
     const invalidReq = (0, utils_1.validateRequest)(request.body, ['from', 'to']);
@@ -45,16 +45,33 @@ const sendEmail = async (request, response) => {
         hasText: !!text,
         hasHtml: !!html,
         hasReplyTo: !!replyTo,
+        attachmentCount: attachments?.length || 0,
     });
     try {
-        const res = await resend.emails.send({
+        const emailConfig = {
             from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
             to: to || 'test@email.com',
             subject,
             ...(text && { text }),
             ...(html && { html }),
             ...(replyTo && { replyTo }),
-        });
+        };
+        // Add attachments if provided
+        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+            // Validate and process attachments
+            const processedAttachments = attachments.map((attachment) => {
+                if (!attachment.filename || !attachment.content) {
+                    throw new Error('Each attachment must have filename and content');
+                }
+                return {
+                    filename: attachment.filename,
+                    content: attachment.content, // Should be base64 encoded string
+                };
+            });
+            emailConfig.attachments = processedAttachments;
+            console.log('[EMAIL] Attachments included:', processedAttachments.map(a => a.filename));
+        }
+        const res = await resend.emails.send(emailConfig);
         if (res.data && res.data.id) {
             console.log('[EMAIL] ✓ Email sent successfully. ID:', res.data.id);
             return response.status(200).json({
