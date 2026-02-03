@@ -136,10 +136,10 @@ def send_email(to, subject, html, attachments=None):
         'subject': subject,
         'html': html
     }
-    
+
     if attachments:
         payload['attachments'] = attachments
-    
+
     response = requests.post(
         f'{API_URL}/send-email',
         json=payload,
@@ -178,6 +178,7 @@ print(result)
   - `content` - Base64-encoded file content
 
 **Example:**
+
 ```json
 {
   "to": "user@example.com",
@@ -280,10 +281,12 @@ const response = await sendEmail(
   'user@example.com',
   'Your Invoice',
   '<p>See attached</p>',
-  [{
-    filename: 'invoice.pdf',
-    content: base64Content
-  }]
+  [
+    {
+      filename: 'invoice.pdf',
+      content: base64Content,
+    },
+  ]
 )
 ```
 
