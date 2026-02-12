@@ -15,7 +15,7 @@ export const sendEmail = async (
   console.log('[EMAIL] Validating request...')
 
   // Validate required fields
-  const invalidReq = validateRequest(request.body, ['from', 'to'])
+  const invalidReq = validateRequest(request.body, ['to'])
   if (invalidReq) {
     console.log('[EMAIL] ❌ Validation failed:', invalidReq)
     return response.status(400).json({
@@ -25,7 +25,7 @@ export const sendEmail = async (
     })
   }
 
-  console.log('[EMAIL] ✓ Required fields present (from, to)')
+  console.log('[EMAIL] ✓ Required fields present (to)')
 
   // Validate content requirements
   if (!subject) {
@@ -48,7 +48,7 @@ export const sendEmail = async (
 
   console.log('[EMAIL] ✓ Validation passed')
   console.log('[EMAIL] Sending email:', {
-    from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
+    from: from || 'no-reply@updates.firstlovecenter.com',
     to: to || 'test@email.com',
     subject,
     hasText: !!text,
@@ -59,7 +59,7 @@ export const sendEmail = async (
 
   try {
     const emailConfig: any = {
-      from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
+      from: from || 'no-reply@updates.firstlovecenter.com',
       to: to || 'test@email.com',
       subject,
       ...(text && { text }),
