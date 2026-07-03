@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 // import rateLimit from 'express-rate-limit'
 import { sendSMS } from './sendSMS'
 import { sendEmail } from './sendEmail'
+import { sendPush } from './sendPush'
 import { loadSecrets } from './secrets'
 
 const express = require('express')
@@ -55,6 +56,53 @@ router.post('/send-sms', async (request: Request, response: Response) => {
     return response.status(502).json({
       success: false,
       error: 'SMS delivery failed',
+      message:
+        error instanceof Error ? error.message : 'Unknown error occurred',
+    })
+  }
+})
+
+// Push endpoint
+router.post('/send-push', async (request: Request, response: Response) => {
+  console.log('\n[PUSH] Incoming request')
+  // PII-safe: never log headers (they carry the secret key) or the payload
+  // (device tokens / message body). Log only the shape of the request.
+  console.log('[PUSH] Body:', {
+    hasTokens: Array.isArray(request.body.tokens),
+    tokenCount: Array.isArray(request.body.tokens)
+      ? request.body.tokens.length
+      : 0,
+    hasTopic: !!request.body.topic,
+    hasNotification: !!request.body.notification,
+    hasData: !!request.body.data,
+  })
+
+  const secretKey = request.headers['x-secret-key']
+  const SECRETS = await loadSecrets()
+
+  if (!secretKey || secretKey !== SECRETS.FLC_NOTIFY_KEY) {
+    console.log('[PUSH] ❌ Authorization failed')
+    return response.status(403).json({
+      success: false,
+      error: 'Unauthorized access',
+      message: 'Invalid or missing API key',
+    })
+  }
+
+  console.log('[PUSH] ✓ Authorization passed')
+
+  try {
+    const result = await sendPush(request, response)
+    console.log('[PUSH] ✓ Push function completed')
+    return result
+  } catch (error) {
+    console.log(
+      '[PUSH] ❌ Error:',
+      error instanceof Error ? error.message : 'Unknown error'
+    )
+    return response.status(502).json({
+      success: false,
+      error: 'Push delivery failed',
       message:
         error instanceof Error ? error.message : 'Unknown error occurred',
     })
