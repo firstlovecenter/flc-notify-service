@@ -10,7 +10,7 @@ const sendEmail = async (request, response) => {
     const { from, to, text, html, subject, replyTo, attachments } = request.body;
     console.log('[EMAIL] Validating request...');
     // Validate required fields
-    const invalidReq = (0, utils_1.validateRequest)(request.body, ['from', 'to']);
+    const invalidReq = (0, utils_1.validateRequest)(request.body, ['to']);
     if (invalidReq) {
         console.log('[EMAIL] ❌ Validation failed:', invalidReq);
         return response.status(400).json({
@@ -19,7 +19,7 @@ const sendEmail = async (request, response) => {
             message: invalidReq,
         });
     }
-    console.log('[EMAIL] ✓ Required fields present (from, to)');
+    console.log('[EMAIL] ✓ Required fields present (to)');
     // Validate content requirements
     if (!subject) {
         console.log('[EMAIL] ❌ Validation failed: Missing subject');
@@ -39,7 +39,7 @@ const sendEmail = async (request, response) => {
     }
     console.log('[EMAIL] ✓ Validation passed');
     console.log('[EMAIL] Sending email:', {
-        from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
+        from: from || 'no-reply@updates.firstlovecenter.com',
         to: to || 'test@email.com',
         subject,
         hasText: !!text,
@@ -49,7 +49,7 @@ const sendEmail = async (request, response) => {
     });
     try {
         const emailConfig = {
-            from: from || 'FL Accra Admin<no-reply@updates.firstlovecenter.com>',
+            from: from || 'no-reply@updates.firstlovecenter.com',
             to: to || 'test@email.com',
             subject,
             ...(text && { text }),
@@ -69,7 +69,7 @@ const sendEmail = async (request, response) => {
                 };
             });
             emailConfig.attachments = processedAttachments;
-            console.log('[EMAIL] Attachments included:', processedAttachments.map(a => a.filename));
+            console.log('[EMAIL] Attachments included:', processedAttachments.map((a) => a.filename));
         }
         const res = await resend.emails.send(emailConfig);
         if (res.data && res.data.id) {

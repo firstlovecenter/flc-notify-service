@@ -4,6 +4,7 @@ exports.handler = void 0;
 // import rateLimit from 'express-rate-limit'
 const sendSMS_1 = require("./sendSMS");
 const sendEmail_1 = require("./sendEmail");
+const sendPush_1 = require("./sendPush");
 const secrets_1 = require("./secrets");
 const express = require('express');
 const serverless = require('serverless-http');
@@ -48,6 +49,45 @@ router.post('/send-sms', async (request, response) => {
         return response.status(502).json({
             success: false,
             error: 'SMS delivery failed',
+            message: error instanceof Error ? error.message : 'Unknown error occurred',
+        });
+    }
+});
+// Push endpoint
+router.post('/send-push', async (request, response) => {
+    console.log('\n[PUSH] Incoming request');
+    // PII-safe: never log headers (they carry the secret key) or the payload
+    // (device tokens / message body). Log only the shape of the request.
+    console.log('[PUSH] Body:', {
+        hasTokens: Array.isArray(request.body.tokens),
+        tokenCount: Array.isArray(request.body.tokens)
+            ? request.body.tokens.length
+            : 0,
+        hasTopic: !!request.body.topic,
+        hasNotification: !!request.body.notification,
+        hasData: !!request.body.data,
+    });
+    const secretKey = request.headers['x-secret-key'];
+    const SECRETS = await (0, secrets_1.loadSecrets)();
+    if (!secretKey || secretKey !== SECRETS.FLC_NOTIFY_KEY) {
+        console.log('[PUSH] ❌ Authorization failed');
+        return response.status(403).json({
+            success: false,
+            error: 'Unauthorized access',
+            message: 'Invalid or missing API key',
+        });
+    }
+    console.log('[PUSH] ✓ Authorization passed');
+    try {
+        const result = await (0, sendPush_1.sendPush)(request, response);
+        console.log('[PUSH] ✓ Push function completed');
+        return result;
+    }
+    catch (error) {
+        console.log('[PUSH] ❌ Error:', error instanceof Error ? error.message : 'Unknown error');
+        return response.status(502).json({
+            success: false,
+            error: 'Push delivery failed',
             message: error instanceof Error ? error.message : 'Unknown error occurred',
         });
     }
