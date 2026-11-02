@@ -30,8 +30,11 @@ router.get('/', (request: Request, response: Response) => {
 // SMS endpoint
 router.post('/send-sms', async (request: Request, response: Response) => {
   console.log('\n[SMS] Incoming request')
-  console.log('[SMS] Headers:', request.headers)
-  console.log('[SMS] Body:', { ...request.body, message: request.body.message ? `${request.body.message.substring(0, 50)}...` : undefined })
+  // PII-safe: never log headers (they carry the secret key) or the payload.
+  console.log('[SMS] Body:', {
+    hasTo: !!request.body.to,
+    hasMessage: !!request.body.message,
+  })
   
   const secretKey = request.headers['x-secret-key']
   const SECRETS = await loadSecrets()
@@ -112,8 +115,13 @@ router.post('/send-push', async (request: Request, response: Response) => {
 // Email endpoint
 router.post('/send-email', async (request: Request, response: Response) => {
   console.log('\n[EMAIL] Incoming request')
-  console.log('[EMAIL] Headers:', request.headers)
-  console.log('[EMAIL] Body:', { ...request.body, html: request.body.html ? `${request.body.html.substring(0, 50)}...` : undefined, text: request.body.text ? `${request.body.text.substring(0, 50)}...` : undefined })
+  // PII-safe: never log headers (they carry the secret key) or the payload.
+  console.log('[EMAIL] Body:', {
+    hasTo: !!request.body.to,
+    hasSubject: !!request.body.subject,
+    hasHtml: !!request.body.html,
+    hasText: !!request.body.text,
+  })
   
   const secretKey = request.headers['x-secret-key']
   const SECRETS = await loadSecrets()
