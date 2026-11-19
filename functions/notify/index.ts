@@ -32,7 +32,7 @@ router.post('/send-sms', async (request: Request, response: Response) => {
   console.log('\n[SMS] Incoming request')
   // PII-safe: never log headers (they carry the secret key) or the payload.
   console.log('[SMS] Body:', {
-    hasTo: !!request.body.to,
+    hasRecipient: !!request.body.recipient,
     hasMessage: !!request.body.message,
   })
   
