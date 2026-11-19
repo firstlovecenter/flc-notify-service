@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SMS now sends through FlashSMS Africa API v2 (`POST /sms/send`, Bearer v2 key,
   fresh `Idempotency-Key` per send) by default (SYN-257). The `/send-sms` route,
   `x-secret-key` auth and request body are unchanged.
-- New secrets: `FLASHSMS_API_KEY` (required), `FLASHSMS_SENDER_ID` and
-  `SMS_PROVIDER` (optional).
+- New secrets in the AWS Secrets Manager secret: `SMS_NOTIFY_KEY` (required,
+  the FlashSMS v2 API key, added alongside `MNOTIFY_KEY`), `FLASHSMS_SENDER_ID`
+  and `SMS_PROVIDER` (optional).
 - SMS logs no longer include recipient numbers, and the mNotify error log no
   longer dumps the axios error (whose URL carried the mNotify key).
 

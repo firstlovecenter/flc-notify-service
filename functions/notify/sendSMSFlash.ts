@@ -20,6 +20,10 @@ const KNOWN_ERRORS: Record<string, string> = {
  * Send SMS through FlashSMS Africa API v2 (POST /sms/send) — the default
  * provider since SYN-257.
  *
+ * The v2 API key is `SMS_NOTIFY_KEY` in the notify service's AWS Secrets
+ * Manager secret, added alongside the deprecated provider's `MNOTIFY_KEY`
+ * (which stays, for switching back).
+ *
  * Logging rule: never log the axios request config, headers, URL, the
  * Authorization key, phone numbers or message text. Log the HTTP status,
  * FlashSMS `error.code` and `meta.requestId` only.
@@ -31,8 +35,10 @@ export const sendSMSFlash = async (
   SECRETS: Record<string, string>,
   response: Response
 ) => {
-  if (!SECRETS.FLASHSMS_API_KEY) {
-    console.error('[SMS] ❌ FLASHSMS_API_KEY is not set in the notify secret')
+  if (!SECRETS.SMS_NOTIFY_KEY) {
+    console.error(
+      '[SMS] ❌ SMS_NOTIFY_KEY (FlashSMS API key) is not set in the AWS Secrets Manager secret'
+    )
     return response.status(500).json({
       success: false,
       error: 'SMS provider not configured',
@@ -55,7 +61,7 @@ export const sendSMSFlash = async (
       method: 'post',
       url: FLASHSMS_SEND_URL,
       headers: {
-        Authorization: `Bearer ${SECRETS.FLASHSMS_API_KEY}`,
+        Authorization: `Bearer ${SECRETS.SMS_NOTIFY_KEY}`,
         'Idempotency-Key': idempotencyKey,
         'content-type': 'application/json',
       },

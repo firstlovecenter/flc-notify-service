@@ -83,7 +83,7 @@ This service is deployed as an AWS Lambda function behind AWS API Gateway and pr
    ```json
    {
      "FLC_NOTIFY_KEY": "your-api-authentication-key",
-     "FLASHSMS_API_KEY": "your-flashsms-v2-api-key",
+     "SMS_NOTIFY_KEY": "your-flashsms-v2-api-key",
      "FLASHSMS_SENDER_ID": "optional-approved-sender-id",
      "SMS_PROVIDER": "optional: flashsms (default) or mnotify",
      "MNOTIFY_KEY": "your-mnotify-api-key (deprecated provider; keep it)",
@@ -102,7 +102,9 @@ This service is deployed as an AWS Lambda function behind AWS API Gateway and pr
 
    **SMS provider (SYN-257).** SMS goes through **FlashSMS Africa API v2**
    (`POST https://app.flashsms.africa/api/v2/sms/send`) by default.
-   - `FLASHSMS_API_KEY` must be a key created with version **v2** and at least the
+   - `SMS_NOTIFY_KEY` is the FlashSMS API key. It lives in this AWS Secrets
+     Manager secret, **added alongside** `MNOTIFY_KEY` — it does not replace it.
+     It must be a key created with version **v2** and at least the
      `messages:send` scope — a v1 key is refused by `/api/v2` with `PERMISSION_DENIED`.
      Without it every `/send-sms` returns `500 SMS provider not configured`.
    - `FLASHSMS_SENDER_ID` (optional) is the sender ID approved on the FlashSMS
@@ -205,7 +207,7 @@ FlashSMS accepts the send with `202 Accepted` and queues it — `status` is
 
 - `400 Bad Request` - Missing or invalid parameters
 - `403 Forbidden` - Invalid or missing API key
-- `500 Internal Server Error` - SMS provider not configured (no `FLASHSMS_API_KEY`)
+- `500 Internal Server Error` - SMS provider not configured (no `SMS_NOTIFY_KEY` in the secret)
 - `502 Bad Gateway` - SMS provider error. For FlashSMS, `data.code` carries the
   FlashSMS `error.code` (e.g. `INSUFFICIENT_CREDITS`, `INVALID_SENDER_ID`,
   `RATE_LIMITED`) and `data.requestId` its `meta.requestId`
