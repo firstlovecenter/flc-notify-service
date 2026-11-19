@@ -1,11 +1,30 @@
 import { Request, Response } from 'express'
 import { loadSecrets } from './secrets'
+import { sendSMSFlash } from './sendSMSFlash'
+import { sendSMSMNotify } from './sendSMSMNotify'
 
-const { default: axios } = require('axios')
+const DEFAULT_SENDER = 'FLC Admin'
+
+/**
+ * Which SMS provider to use. FlashSMS is the default (SYN-257); mNotify is
+ * deprecated and only used when `SMS_PROVIDER` is explicitly `mnotify`, read
+ * from the notify secret first, then the Lambda env.
+ */
+const resolveProvider = (SECRETS: Record<string, string>) => {
+  const setting = (SECRETS.SMS_PROVIDER || process.env.SMS_PROVIDER || '')
+    .trim()
+    .toLowerCase()
+
+  if (setting === 'mnotify') return 'mnotify'
+  if (setting && setting !== 'flashsms') {
+    console.warn(`[SMS] ⚠️ Unknown SMS_PROVIDER "${setting}", using flashsms`)
+  }
+  return 'flashsms'
+}
 
 export const sendSMS = async (request: Request, response: Response) => {
   const { recipient, message, sender } = request.body
-  
+
   console.log('[SMS] Validating request...')
 
   // Validate required fields
@@ -26,87 +45,37 @@ export const sendSMS = async (request: Request, response: Response) => {
       message: 'Missing message field',
     })
   }
-  
+
   console.log('[SMS] ✓ Validation passed')
 
-  // Format phone numbers if needed (add validation here if necessary)
-  const recipients = Array.isArray(recipient) ? recipient : [recipient]
-  
-  console.log('[SMS] Recipients:', recipients)
+  const recipients: string[] = Array.isArray(recipient)
+    ? recipient
+    : [recipient]
+
+  // PII-safe: log counts, never the numbers or the message text.
+  console.log('[SMS] Recipient count:', recipients.length)
   console.log('[SMS] Message length:', message.length)
-  console.log('[SMS] Sender:', sender || 'FLC Admin')
 
   const SECRETS = await loadSecrets()
+  const provider = resolveProvider(SECRETS)
+  console.log('[SMS] Provider:', provider)
 
-  const sendMessage = {
-    method: 'post',
-    url: `https://api.mnotify.com/api/sms/quick?key=${SECRETS.MNOTIFY_KEY}`,
-    headers: {
-      'content-type': 'application/json',
-    },
-    data: {
-      recipient: SECRETS.TEST_PHONE_NUMBER
-        ? [SECRETS.TEST_PHONE_NUMBER, '0594760323']
-        : recipients,
-      sender: sender || 'FLC Admin',
+  if (provider === 'mnotify') {
+    return sendSMSMNotify(
+      recipients,
       message,
-      is_schedule: 'false',
-      schedule_date: '',
-    },
+      sender || DEFAULT_SENDER,
+      SECRETS,
+      response
+    )
   }
-  
-  console.log('[SMS] Sending SMS via MNotify...')
 
-  try {
-    const res = await axios(sendMessage)
-    
-    console.log('[SMS] MNotify response code:', res.data.code)
+  // The sender ID must be approved on the FlashSMS account, so the configured
+  // one wins over whatever the caller passed.
+  const senderId = SECRETS.FLASHSMS_SENDER_ID || sender || DEFAULT_SENDER
+  console.log('[SMS] Sender:', senderId)
 
-    if (res.data.code === '2000') {
-      console.log('[SMS] ✓ SMS sent successfully')
-      return response.status(200).json({
-        success: true,
-        message: 'SMS sent successfully',
-        data: res.data,
-      })
-    }
-
-    // API returned an error code
-    console.log('[SMS] ❌ MNotify error:', res.data.message)
-    return response.status(502).json({
-      success: false,
-      error: 'SMS provider error',
-      message: `Failed to send SMS: ${
-        res.data.message || 'Unknown provider error'
-      }`,
-      data: res.data,
-    })
-  } catch (error) {
-    console.error('[SMS] ❌ SMS send error:', error)
-
-    // Handle network errors or other axios errors
-    if (axios.isAxiosError(error)) {
-      return response.status(502).json({
-        success: false,
-        error: 'SMS provider connection error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Failed to connect to SMS provider',
-        data: (error as any).response?.data,
-      })
-    }
-
-    // Handle other unexpected errors
-    return response.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message:
-        error instanceof Error
-          ? error.message
-          : 'Unknown error occurred while sending SMS',
-    })
-  }
+  return sendSMSFlash(recipients, message, senderId, SECRETS, response)
 }
 
 export default sendSMS

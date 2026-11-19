@@ -12,7 +12,7 @@ FLC Notify Service is a notification microservice built for First Love Center pr
 
 ## Features
 
-- 📱 **SMS Notifications** - Send SMS via MNotify with support for single or multiple recipients
+- 📱 **SMS Notifications** - Send SMS via FlashSMS Africa (API v2) with support for single or multiple recipients (mNotify is kept as a deprecated fallback)
 - 📧 **Email Notifications** - Send emails via Resend with HTML and plain text support
 - 🔔 **Push Notifications** - Send push via Firebase Cloud Messaging (FCM HTTP v1) to device tokens or topics
 - 🔒 **Secure Authentication** - API key-based authentication for all requests
@@ -29,7 +29,7 @@ This service is deployed as an AWS Lambda function behind AWS API Gateway and pr
 ### Endpoints
 
 - **GET** `/` - Health check endpoint
-- **POST** `/send-sms` - Send SMS messages via MNotify
+- **POST** `/send-sms` - Send SMS messages via FlashSMS Africa
 - **POST** `/send-email` - Send emails via Resend
 - **POST** `/send-push` - Send push notifications via Firebase Cloud Messaging
 
@@ -38,7 +38,7 @@ This service is deployed as an AWS Lambda function behind AWS API Gateway and pr
 - **Runtime**: Node.js 20.x
 - **Framework**: Express.js with serverless-http
 - **Language**: TypeScript
-- **SMS Provider**: MNotify
+- **SMS Provider**: FlashSMS Africa API v2 (default); MNotify (deprecated, opt-in via `SMS_PROVIDER`)
 - **Email Provider**: Resend
 - **Push Provider**: Firebase Cloud Messaging (FCM HTTP v1, via `firebase-admin`)
 - **Secrets Management**: AWS Secrets Manager
@@ -83,7 +83,10 @@ This service is deployed as an AWS Lambda function behind AWS API Gateway and pr
    ```json
    {
      "FLC_NOTIFY_KEY": "your-api-authentication-key",
-     "MNOTIFY_KEY": "your-mnotify-api-key",
+     "FLASHSMS_API_KEY": "your-flashsms-v2-api-key",
+     "FLASHSMS_SENDER_ID": "optional-approved-sender-id",
+     "SMS_PROVIDER": "optional: flashsms (default) or mnotify",
+     "MNOTIFY_KEY": "your-mnotify-api-key (deprecated provider; keep it)",
      "RESEND_API_KEY": "your-resend-api-key",
      "TEST_PHONE_NUMBER": "optional-test-number",
      "FIREBASE_SERVICE_ACCOUNT": "{\"type\":\"service_account\",\"project_id\":\"flc-platform-dev\", ...}"
@@ -96,6 +99,21 @@ This service is deployed as an AWS Lambda function behind AWS API Gateway and pr
    **prod** project's key in the prod secret. This value is a credential — never
    commit it, hardcode it, or log it. See [Push Notification Setup](#push-notification-setup-firebase)
    for how to generate it.
+
+   **SMS provider (SYN-257).** SMS goes through **FlashSMS Africa API v2**
+   (`POST https://app.flashsms.africa/api/v2/sms/send`) by default.
+   - `FLASHSMS_API_KEY` must be a key created with version **v2** and at least the
+     `messages:send` scope — a v1 key is refused by `/api/v2` with `PERMISSION_DENIED`.
+     Without it every `/send-sms` returns `500 SMS provider not configured`.
+   - `FLASHSMS_SENDER_ID` (optional) is the sender ID approved on the FlashSMS
+     account. When set it wins over the caller's `sender`; otherwise the caller's
+     `sender` (or `FLC Admin`) is used, and FlashSMS rejects it with
+     `INVALID_SENDER_ID` if it is not approved.
+   - `SMS_PROVIDER` (optional, secret or Lambda env) selects the provider. Set it
+     to `mnotify` to switch back to the **deprecated** mNotify path, which still
+     reads `MNOTIFY_KEY`. Anything else, or unset, means FlashSMS. Secrets are read
+     on every request, so the switch takes effect without a redeploy.
+   - `TEST_PHONE_NUMBER`, when set, redirects every SMS to that one number.
 
 5. Configure environment variables
 
@@ -169,16 +187,28 @@ x-secret-key: YOUR_SECRET_KEY
   "success": true,
   "message": "SMS sent successfully",
   "data": {
-    "code": "2000"
+    "provider": "flashsms",
+    "id": "msg_01HV89RAJ...",
+    "status": "PENDING",
+    "recipientCount": 1,
+    "invalidRecipientCount": 0,
+    "requestId": "..."
   }
 }
 ```
+
+FlashSMS accepts the send with `202 Accepted` and queues it — `status` is
+`PENDING`, not a delivery confirmation. (With the deprecated mNotify provider,
+`data` is mNotify's raw response instead.)
 
 **Error Responses:**
 
 - `400 Bad Request` - Missing or invalid parameters
 - `403 Forbidden` - Invalid or missing API key
-- `502 Bad Gateway` - SMS provider error
+- `500 Internal Server Error` - SMS provider not configured (no `FLASHSMS_API_KEY`)
+- `502 Bad Gateway` - SMS provider error. For FlashSMS, `data.code` carries the
+  FlashSMS `error.code` (e.g. `INSUFFICIENT_CREDITS`, `INVALID_SENDER_ID`,
+  `RATE_LIMITED`) and `data.requestId` its `meta.requestId`
 
 ### Send Email
 
@@ -496,7 +526,9 @@ flc-notify-service/
 │   └── notify/
 │       ├── index.ts        # Main Lambda handler & routing
 │       ├── sendEmail.ts    # Email sending logic (Resend)
-│       ├── sendSMS.ts      # SMS sending logic (MNotify)
+│       ├── sendSMS.ts      # SMS validation + provider selection
+│       ├── sendSMSFlash.ts # FlashSMS Africa API v2 (default SMS provider)
+│       ├── sendSMSMNotify.ts # MNotify (DEPRECATED SMS provider)
 │       ├── sendPush.ts     # Push sending logic (Firebase Cloud Messaging)
 │       ├── secrets.ts      # AWS Secrets Manager integration
 │       ├── utils.ts        # Utility functions
@@ -512,7 +544,9 @@ flc-notify-service/
 ### Key Files Explained
 
 - **index.ts**: Express.js application with routes, authentication middleware, and error handling
-- **sendSMS.ts**: MNotify integration with validation and error handling
+- **sendSMS.ts**: SMS request validation and provider selection (`SMS_PROVIDER`)
+- **sendSMSFlash.ts**: FlashSMS Africa API v2 integration (default); logs only status, `error.code` and `meta.requestId`
+- **sendSMSMNotify.ts**: **Deprecated** MNotify integration, kept so SMS can be switched back
 - **sendEmail.ts**: Resend integration with support for HTML/text emails
 - **sendPush.ts**: Firebase Cloud Messaging integration; initializes `firebase-admin` once per warm Lambda and uses `sendEachForMulticast` for token batches
 - **secrets.ts**: AWS Secrets Manager client for secure credential management
@@ -708,7 +742,7 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 
 ## Acknowledgments
 
-- MNotify for SMS delivery services
+- FlashSMS Africa for SMS delivery services (MNotify previously)
 - Resend for email delivery services
 - AWS Lambda for serverless hosting
 

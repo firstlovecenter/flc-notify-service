@@ -885,7 +885,7 @@ const EMAIL_TEMPLATES = {
 **Solutions:**
 
 - Retry the request after a short delay
-- Check provider status (MNotify for SMS, Resend for email)
+- Check provider status (FlashSMS Africa for SMS — MNotify if `SMS_PROVIDER=mnotify`, Resend for email)
 - Contact support if issue persists
 
 #### 5. CORS Error
@@ -920,7 +920,7 @@ If you encounter issues not covered here:
 ### Version 1.0.0
 
 - Initial release
-- SMS sending via MNotify
+- SMS sending via FlashSMS Africa (MNotify deprecated)
 - Email sending via Resend
 - API key authentication
 - Comprehensive error handling

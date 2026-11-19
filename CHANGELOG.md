@@ -5,6 +5,23 @@ All notable changes to the FLC Notify Service will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- SMS now sends through FlashSMS Africa API v2 (`POST /sms/send`, Bearer v2 key,
+  fresh `Idempotency-Key` per send) by default (SYN-257). The `/send-sms` route,
+  `x-secret-key` auth and request body are unchanged.
+- New secrets: `FLASHSMS_API_KEY` (required), `FLASHSMS_SENDER_ID` and
+  `SMS_PROVIDER` (optional).
+- SMS logs no longer include recipient numbers, and the mNotify error log no
+  longer dumps the axios error (whose URL carried the mNotify key).
+
+### Deprecated
+
+- The mNotify SMS provider. Kept in `sendSMSMNotify.ts` and selectable with
+  `SMS_PROVIDER=mnotify`; `MNOTIFY_KEY` stays in the secret.
+
 ## [1.0.0] - 2026-02-02
 
 ### Added
