@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import { NextFunction, Request, Response } from 'express'
 // import rateLimit from 'express-rate-limit'
 import { sendSMS } from './sendSMS'
 import { sendEmail } from './sendEmail'
@@ -163,6 +163,37 @@ app.use('*', (_req: Request, res: Response) => {
     message: 'The requested endpoint does not exist',
   })
 })
+
+// Body-parser errors (malformed JSON, oversized body…) are the caller's
+// mistake, not ours: answer with a JSON 4xx and log below ERROR. Without this,
+// Express's default handler console.error's the stack (filed as an error-intake
+// ticket) and replies with an HTML page. PII-safe: never log the raw body.
+app.use(
+  (
+    error: { type?: string; status?: number; message?: string },
+    _req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const status = error?.status ?? 0
+    if (!error?.type || status < 400 || status >= 500) {
+      return next(error)
+    }
+
+    console.log(`[REQUEST] ❌ Rejected body (${error.type}, ${status})`)
+    return res.status(status).json({
+      success: false,
+      error:
+        error.type === 'entity.parse.failed'
+          ? 'Invalid JSON'
+          : 'Invalid request body',
+      message:
+        error.type === 'entity.parse.failed'
+          ? 'The request body is not valid JSON'
+          : 'The request body could not be read',
+    })
+  }
+)
 
 // Create serverless handler with more flexible configuration
 // eslint-disable-next-line import/prefer-default-export
