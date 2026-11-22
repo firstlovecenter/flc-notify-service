@@ -205,7 +205,9 @@ FlashSMS accepts the send with `202 Accepted` and queues it — `status` is
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing or invalid parameters
+- `400 Bad Request` - Missing or invalid parameters, or no recipient is a valid
+  phone number (Ghana numbers are normalised to `233XXXXXXXXX`; invalid ones
+  are dropped and counted in `invalidRecipientCount`)
 - `403 Forbidden` - Invalid or missing API key
 - `500 Internal Server Error` - SMS provider not configured (no `SMS_NOTIFY_KEY` in the secret)
 - `502 Bad Gateway` - SMS provider error. For FlashSMS, `data.code` carries the
