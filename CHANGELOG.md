@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SMS logs no longer include recipient numbers, and the mNotify error log no
   longer dumps the axios error (whose URL carried the mNotify key).
 
+### Fixed
+
+- One malformed recipient number (e.g. `2330XXXXXXXXX`, or too few digits) no
+  longer fails a FlashSMS send with `400 INVALID_REQUEST` (SYN-274). Recipients
+  are normalised to `233XXXXXXXXX` before the send and numbers that cannot be a
+  phone are dropped; if none remain, `/send-sms` returns `400 No valid recipient
+  phone number` (logged at WARN) without calling FlashSMS. A FlashSMS error log
+  now names the rejected fields (`detailFields`), never their values.
+
 ### Deprecated
 
 - The mNotify SMS provider. Kept in `sendSMSMNotify.ts` and selectable with

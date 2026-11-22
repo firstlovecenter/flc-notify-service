@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import { Response } from 'express'
+import { normaliseRecipients } from './smsRecipients'
 
 const { default: axios } = require('axios')
 
@@ -14,6 +15,22 @@ const KNOWN_ERRORS: Record<string, string> = {
   PERMISSION_DENIED:
     'SMS provider API key lacks permission (needs a v2 key with messages:send)',
   RATE_LIMITED: 'SMS provider rate limit reached, retry later',
+}
+
+/**
+ * Which fields FlashSMS's `error.details` names, so the next INVALID_REQUEST
+ * says what it rejected. Field names only — never the values, which can be
+ * phone numbers or message text.
+ */
+const detailFieldNames = (details: unknown): string[] | undefined => {
+  if (!details || typeof details !== 'object') return undefined
+  if (Array.isArray(details)) {
+    return details
+      .map((d) => d?.field ?? d?.path)
+      .filter((f) => typeof f === 'string' || Array.isArray(f))
+      .map((f) => (Array.isArray(f) ? f.join('.') : f))
+  }
+  return Object.keys(details)
 }
 
 /**
@@ -46,12 +63,32 @@ export const sendSMSFlash = async (
     })
   }
 
+  // SYN-274: one malformed number makes FlashSMS reject the whole send with
+  // INVALID_REQUEST, so normalise first and drop what cannot be a phone.
+  const { valid, invalidCount } = normaliseRecipients(
+    SECRETS.TEST_PHONE_NUMBER ? [SECRETS.TEST_PHONE_NUMBER] : recipients
+  )
+
+  if (!valid.length) {
+    // A bad number on the caller's record, not a service failure.
+    console.warn('[SMS] ⚠️ No valid recipient phone number, not sending', {
+      invalidCount,
+    })
+    return response.status(400).json({
+      success: false,
+      error: 'Validation error',
+      message: 'No valid recipient phone number',
+      data: { provider: 'flashsms', invalidRecipientCount: invalidCount },
+    })
+  }
+
   // A fresh key per logical send; FlashSMS replays the original response for
   // a repeated key within 24h instead of sending twice.
   const idempotencyKey = randomUUID()
 
   console.log('[SMS] Sending SMS via FlashSMS...', {
-    recipientCount: SECRETS.TEST_PHONE_NUMBER ? 1 : recipients.length,
+    recipientCount: valid.length,
+    droppedInvalid: invalidCount,
     testNumber: !!SECRETS.TEST_PHONE_NUMBER,
     idempotencyKey,
   })
@@ -66,9 +103,7 @@ export const sendSMSFlash = async (
         'content-type': 'application/json',
       },
       data: {
-        phones: SECRETS.TEST_PHONE_NUMBER
-          ? [SECRETS.TEST_PHONE_NUMBER]
-          : recipients,
+        phones: valid,
         message,
         senderId: sender,
       },
@@ -77,6 +112,9 @@ export const sendSMSFlash = async (
 
     const data = res.data?.data ?? {}
     const requestId = res.data?.meta?.requestId
+    const flashInvalidCount = Array.isArray(data.invalidRecipients)
+      ? data.invalidRecipients.length
+      : 0
 
     console.log('[SMS] ✓ FlashSMS accepted the send:', {
       httpStatus: res.status,
@@ -94,9 +132,7 @@ export const sendSMSFlash = async (
         id: data.id,
         status: data.status,
         recipientCount: data.recipientCount,
-        invalidRecipientCount: Array.isArray(data.invalidRecipients)
-          ? data.invalidRecipients.length
-          : 0,
+        invalidRecipientCount: invalidCount + flashInvalidCount,
         requestId,
       },
     })
@@ -113,7 +149,12 @@ export const sendSMSFlash = async (
           requestId,
         })
       } else {
-        console.error('[SMS] ❌ FlashSMS error:', { status, code, requestId })
+        console.error('[SMS] ❌ FlashSMS error:', {
+          status,
+          code,
+          requestId,
+          detailFields: detailFieldNames(body?.error?.details),
+        })
       }
 
       return response.status(502).json({
